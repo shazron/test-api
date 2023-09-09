@@ -1,5 +1,8 @@
 // tested with Node-16
 
+// read from .env
+require('dotenv').config()
+
 const fs = require('node:fs');
 const axios = require('axios');
 const { Blob } = require('node:buffer');
@@ -33,6 +36,8 @@ async function upload(fileMetadata) {
         mime 
     })
     .then((r) => r.data);
+
+  debug('signedResponse', signedResponse)
 
   // create a new http request and remove the content type
   const a = axios.create();

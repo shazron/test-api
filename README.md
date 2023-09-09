@@ -2,7 +2,7 @@
 
 1. Install node.js 16 or greater: <https://nodejs.org>
 2. Install dependencies: `npm install`
-3. Run the test code with `ACCESS_TOKEN` in your environment variables (see below)
+3. Run the test code with `ACCESS_TOKEN` in your environment variables (see below, or add it in a .env file, see .env.example)
 
 ## Linux / macOS
 
