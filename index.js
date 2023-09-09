@@ -50,11 +50,19 @@ async function upload(fileMetadata) {
       const blob = fileBlob.slice(part.start, part.end);
 
       debug('start', part.start, 'end', part.end, 'url', part.url);
+      const putOptions = {
+        headers: {
+          'X-Amz-Content-Sha256': 'UNSIGNED-PAYLOAD',
+          'X-Amz-Algorithm': 'AWS4-HMAC-SHA256',
+          'X-Amz-Date': (new Date().toISOString().split(':').join('').split('.')[0] + 'Z').split('-').join('')
+        }
+      }
+
       console.log('chunking part ', part.part)
       promises.push(
           // send the PUT request to the url with part of the file
           // NOTE: this is the part that fails with 400 - Missing x-amz-content-sha256
-          a.put(part.url, blob)
+          a.put(part.url, blob, putOptions)
             .then((response) => {
               // from the header we need to etag, this is S3's id for each part
               // of file so we can re construct it when all pieces are uploaded
