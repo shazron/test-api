@@ -7,6 +7,7 @@ const fs = require('node:fs');
 const axios = require('axios');
 const { Blob } = require('node:buffer');
 const debug = require('debug')('dda')
+const { createHash } = require('node:crypto');
 
 axios.defaults.baseURL = 'https://app.digital-downloads.com/api/v1/';
 axios.defaults.headers.common = { Authorization: `Bearer ${process.env.ACCESS_TOKEN}` };
@@ -14,6 +15,52 @@ axios.defaults.headers.common = { Authorization: `Bearer ${process.env.ACCESS_TO
 if (!process.env.ACCESS_TOKEN) {
   console.error('env var ACCESS_TOKEN was not provided')
   process.exit(1)
+}
+
+/**
+ * Converts a Buffer to a Blob.
+ * 
+ * @param {Buffer} buffer the Buffer to convert
+ * @returns {Blob} the converted Buffer as a Blob
+ */
+function buffer2blob(buffer) {
+  if (buffer instanceof Buffer === false) {
+    throw new Error('not an instance of a Buffer')
+  }
+  return new Blob([buffer])
+}
+
+/**
+ * Converts a Blob to a Buffer.
+ * 
+ * @param {Blob} blob the Blob to convert
+ * @returns {Buffer} the converted Blob as a Buffer
+ */
+async function blob2buffer(blob) {
+  if (blob instanceof Blob === false) {
+    throw new Error('not an instance of a Blob')
+  }
+
+  const arrayBuffer = await blob.arrayBuffer()
+  return Buffer.from(arrayBuffer, 'binary')
+}
+
+/**
+ * The current date, for an X-Amz-Date header.
+ * 
+ * @returns {Date} the date formatted for Amazon
+ */
+function amazonDate() {
+  const now = new Date()
+  return (
+    now
+      .toISOString()
+      .split(':')
+      .join('')
+      .split('.')[0] + 'Z'
+    )
+    .split('-')
+    .join('')
 }
 
 /**
@@ -27,7 +74,7 @@ if (!process.env.ACCESS_TOKEN) {
  * 
  */
 async function upload(fileMetadata) {
-  const { name, size, mime, file: fileBlob } = fileMetadata;
+  const { name, size, mime, fileBlob } = fileMetadata;
   // generate the signed urls
   const signedResponse = await axios
     .post('https://app.digital-downloads.com/api/v1/assets/signed', { 
@@ -51,10 +98,23 @@ async function upload(fileMetadata) {
 
       debug('start', part.start, 'end', part.end, 'url', part.url);
       console.log('chunking part ', part.part)
+
+      const blobBuffer = await blob2buffer(blob)
+      const blobHash = createHash('sha256').update(blobBuffer).digest('hex')
+      const putOptions = {
+        headers: {
+          'X-Amz-Content-Sha256': blobHash,
+          'X-Amz-Date': amazonDate(),
+          'X-Amz-Algorithm': 'AWS4-HMAC-SHA256'
+        }
+      }
+
+      console.log('putHeaders', putOptions)
+
       promises.push(
           // send the PUT request to the url with part of the file
           // NOTE: this is the part that fails with 400 - Missing x-amz-content-sha256
-          a.put(part.url, blob)
+          a.put(part.url, blob, putOptions)
             .then((response) => {
               // from the header we need to etag, this is S3's id for each part
               // of file so we can re construct it when all pieces are uploaded
@@ -91,12 +151,13 @@ async function upload(fileMetadata) {
 
 // ////////////////////////////////////////////////
 
-const name = 'cat.jpg';
-const file = new Blob([fs.readFileSync(name)]);
-const size = fs.statSync(name).size;
-const mime = 'image/jpeg';
+const name = 'cat.jpg'
+const fileBuffer = fs.readFileSync(name)
+const fileBlob = buffer2blob(fileBuffer)
+const size = fs.statSync(name).size
+const mime = 'image/jpeg'
 
-upload({ name, size, mime, file })
+upload({ name, size, mime, fileBlob })
   .catch((e) => {
     console.error('!!!! general upload failure !!!!')
     console.error(e)
