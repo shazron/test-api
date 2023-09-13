@@ -101,6 +101,7 @@ async function upload(fileMetadata) {
 
       const blobBuffer = await blob2buffer(blob)
       const blobHash = createHash('sha256').update(blobBuffer).digest('hex')
+      // these headers were recommended to be put in
       const putOptions = {
         headers: {
           'X-Amz-Content-Sha256': blobHash,
@@ -113,7 +114,7 @@ async function upload(fileMetadata) {
 
       promises.push(
           // send the PUT request to the url with part of the file
-          // NOTE: this is the part that fails with 400 - Missing x-amz-content-sha256
+          // NOTE: this is the part that fails with 400 - InvalidRequest - Please use AWS4-HMAC-SHA256
           a.put(part.url, blob, putOptions)
             .then((response) => {
               // from the header we need to etag, this is S3's id for each part
